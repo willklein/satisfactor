@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { getRecipesForPart, getPartName } from "@/data/recipes"
 
 interface RecipeToggleProps {
@@ -9,10 +9,26 @@ interface RecipeToggleProps {
   onSelect: (partId: string, recipeId: string) => void
 }
 
+const closeListeners = new Set<() => void>()
+
 export default function RecipeToggle({ partId, activeRecipeId, onSelect }: RecipeToggleProps) {
   const [open, setOpen] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const recipes = getRecipesForPart(partId)
+
+  useEffect(() => {
+    const fn = () => setOpen(false)
+    if (open) {
+      closeListeners.add(fn)
+    }
+    return () => { closeListeners.delete(fn) }
+  }, [open])
+
+  const openThis = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    closeListeners.forEach((fn) => fn())
+    setOpen(true)
+  }, [])
 
   if (recipes.length === 0) return null
 
@@ -34,7 +50,7 @@ export default function RecipeToggle({ partId, activeRecipeId, onSelect }: Recip
     <div className="relative">
       <button
         type="button"
-        onMouseEnter={() => { cancelClose(); setOpen(true) }}
+        onMouseEnter={openThis}
         onMouseLeave={startClose}
         className="inline-flex items-center gap-1 rounded bg-zinc-700/60 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
       >
