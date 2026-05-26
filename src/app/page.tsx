@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect } from "react"
 import tiers from "@/data/milestones"
 import { getDefaultRecipe } from "@/data/recipes"
 import { calculate, getMilestoneById } from "@/lib/calculator"
@@ -15,17 +15,19 @@ interface PersistedState {
   checked: string[]
   recipes: Record<string, string>
   hidden: string[]
+  inventory: Record<string, string[]>
 }
 
 function loadPersistedState(): PersistedState {
-  if (typeof window === "undefined") return { checked: [], recipes: {}, hidden: [] }
+  if (typeof window === "undefined") return { checked: [], recipes: {}, hidden: [], inventory: {} }
   try {
     const checked = JSON.parse(localStorage.getItem("sf-checked") || "[]")
     const recipes = JSON.parse(localStorage.getItem("sf-recipes") || "{}")
     const hidden = JSON.parse(localStorage.getItem("sf-hidden") || "[]")
-    return { checked, recipes, hidden }
+    const inventory = JSON.parse(localStorage.getItem("sf-inventory") || "{}")
+    return { checked, recipes, hidden, inventory }
   } catch {
-    return { checked: [], recipes: {}, hidden: [] }
+    return { checked: [], recipes: {}, hidden: [], inventory: {} }
   }
 }
 
@@ -42,10 +44,11 @@ export default function Home() {
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
-    const { checked, recipes, hidden } = loadPersistedState()
+    const { checked, recipes, hidden, inventory } = loadPersistedState()
     setCheckedIds(new Set(checked))
     setActiveRecipes(recipes)
     setHiddenParts(new Set(hidden))
+    setInventory(inventory)
     setInitialized(true)
   }, [])
 
@@ -54,24 +57,11 @@ export default function Home() {
     const ids = Array.from(checkedIds)
     localStorage.setItem("sf-checked", JSON.stringify(ids))
     localStorage.setItem("sf-hidden", JSON.stringify(Array.from(hiddenParts)))
+    localStorage.setItem("sf-inventory", JSON.stringify(inventory))
 
     const calcResult = calculate(ids, activeRecipes)
     setResult(calcResult)
-
-    try {
-      fetch("/api/cache", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          checkedMilestones: ids,
-          activeRecipes,
-          totals: calcResult.totals,
-          rawResources: calcResult.rawResources,
-          timestamp: new Date().toISOString(),
-        }),
-      })
-    } catch {}
-  }, [checkedIds, activeRecipes, hiddenParts, initialized])
+  }, [checkedIds, activeRecipes, hiddenParts, inventory, initialized])
 
   useEffect(() => {
     if (!initialized) return
