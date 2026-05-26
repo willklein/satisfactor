@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { calculateSingle, getMilestoneById, type CalcNode } from "@/lib/calculator"
-import { getPartName, getPartDepth, isRawResource } from "@/data/recipes"
+import { getPartName, getPartDepth, isRawResource, getRecipesForPart } from "@/data/recipes"
 import tiers from "@/data/milestones"
 import RecipeToggle from "./RecipeToggle"
 
@@ -24,14 +24,21 @@ function pruneHiddenNodes(nodes: CalcNode[], hiddenParts: Set<string>): CalcNode
   }, [])
 }
 
-function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
+interface TreeNodeProps {
+  node: CalcNode
+  depth?: number
+  activeRecipes: Record<string, string>
+  onRecipeSelect: (partId: string, recipeId: string) => void
+}
+
+function TreeNode({ node, depth = 0, activeRecipes, onRecipeSelect }: TreeNodeProps) {
   if (node.partId.startsWith("milestone:")) {
     return (
       <div className="mb-6">
         <h4 className="text-sm font-semibold text-zinc-200 mb-2">{node.name}</h4>
         <div className="flex flex-col gap-1">
           {node.children.map((child) => (
-            <TreeNode key={child.partId} node={child} depth={0} />
+            <TreeNode key={child.partId} node={child} depth={0} activeRecipes={activeRecipes} onRecipeSelect={onRecipeSelect} />
           ))}
         </div>
       </div>
@@ -51,6 +58,11 @@ function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
         <span className="text-sm tabular-nums text-zinc-100 font-medium">
           {node.quantity.toLocaleString()}
         </span>
+        <RecipeToggle
+          partId={node.partId}
+          activeRecipeId={activeRecipes[node.partId] || node.partId}
+          onSelect={onRecipeSelect}
+        />
         {node.children.length > 0 && depth < 5 && (
           <span className="text-xs text-zinc-500">▼</span>
         )}
@@ -58,7 +70,7 @@ function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
       {depth < 5 && node.children.length > 0 && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.partId} node={child} depth={depth + 1} />
+            <TreeNode key={child.partId} node={child} depth={depth + 1} activeRecipes={activeRecipes} onRecipeSelect={onRecipeSelect} />
           ))}
         </div>
       )}
@@ -204,6 +216,11 @@ export default function ResultsPanel({
                           className="rounded border-zinc-600 bg-zinc-700 text-yellow-500 focus:ring-yellow-500/40"
                         />
                         <span className="text-xs text-zinc-300">{getPartName(partId)}</span>
+                        <RecipeToggle
+                          partId={partId}
+                          activeRecipeId={activeRecipes[partId] || partId}
+                          onSelect={onRecipeSelect}
+                        />
                         <span className="text-xs tabular-nums text-zinc-100 font-medium ml-auto">
                           {(result.totals[partId] || milestone.parts.find((p) => p.partId === partId)?.quantity || 0).toLocaleString()}
                         </span>
@@ -235,8 +252,15 @@ export default function ResultsPanel({
                     <div className="flex flex-col gap-1">
                       {remainingTierParts.map(([partId, qty]) => (
                         <div key={partId} className="flex items-center justify-between rounded bg-zinc-800/40 px-3 py-1.5">
-                          <span className="text-xs text-zinc-300">{getPartName(partId)}</span>
-                          <span className="text-xs tabular-nums text-zinc-100 font-medium">{qty.toLocaleString()}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs text-zinc-300 truncate">{getPartName(partId)}</span>
+                            <RecipeToggle
+                              partId={partId}
+                              activeRecipeId={activeRecipes[partId] || partId}
+                              onSelect={onRecipeSelect}
+                            />
+                          </div>
+                          <span className="text-xs tabular-nums text-zinc-100 font-medium shrink-0 ml-3">{qty.toLocaleString()}</span>
                         </div>
                       ))}
                     </div>
@@ -255,7 +279,7 @@ export default function ResultsPanel({
             </h3>
             <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
               {prunedTree.map((node) => (
-                <TreeNode key={node.partId} node={node} />
+                <TreeNode key={node.partId} node={node} activeRecipes={activeRecipes} onRecipeSelect={onRecipeSelect} />
               ))}
             </div>
           </div>
