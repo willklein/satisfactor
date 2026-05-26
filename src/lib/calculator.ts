@@ -207,7 +207,7 @@ export function calculateSingle(
   function resolve(partId: string, quantity: number, depth = 0) {
     if (depth > 20) return
     totals[partId] = (totals[partId] || 0) + quantity
-    if (isRawResource(partId)) return
+    if (isRawResource(partId) || inventoryParts?.has(partId)) return
     const recipe = getRecipeFor(partId)
     if (!recipe) return
     const batches = scaleQuantity(quantity, recipe.outputs.quantity)
@@ -243,7 +243,7 @@ export function calculateSingle(
       quantity,
       children: [],
     }
-    if (depth >= 6 || isRawResource(partId)) return node
+    if (depth >= 6 || isRawResource(partId) || inventoryParts?.has(partId)) return node
     const recipe = getRecipeFor(partId)
     if (!recipe) return node
     const batches = scaleQuantity(quantity, recipe.outputs.quantity)

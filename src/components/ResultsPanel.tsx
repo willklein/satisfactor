@@ -172,7 +172,7 @@ export default function ResultsPanel({
                 </h3>
                 <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
                   <p className="text-xs text-zinc-500 mb-3">Mark parts you already have to exclude them from the calculation.</p>
-                  <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+                  <div className="flex flex-col gap-1">
                     {sortedIds.map((partId) => (
                       <label key={partId} className="flex items-center gap-2 rounded bg-zinc-800/40 px-3 py-1.5 cursor-pointer hover:bg-zinc-700/40 transition-colors">
                         <input
