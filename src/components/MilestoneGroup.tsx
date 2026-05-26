@@ -8,6 +8,7 @@ interface MilestoneGroupProps {
   checkedIds: Set<string>
   selectedId: string | null
   expanded: boolean
+  hiddenParts: Set<string>
   onSelect: (id: string) => void
   onToggle: (id: string) => void
   onToggleExpand: () => void
@@ -18,6 +19,7 @@ export default function MilestoneGroup({
   checkedIds,
   selectedId,
   expanded,
+  hiddenParts,
   onSelect,
   onToggle,
   onToggleExpand,
@@ -76,6 +78,7 @@ export default function MilestoneGroup({
               parts={m.parts}
               checked={checkedIds.has(m.id)}
               selected={selectedId === m.id}
+              hiddenParts={hiddenParts}
               onSelect={onSelect}
               onToggle={onToggle}
             />

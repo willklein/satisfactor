@@ -8,7 +8,16 @@ import RecipeToggle from "./RecipeToggle"
 interface ResultsPanelProps {
   selectedMilestoneId: string | null
   activeRecipes: Record<string, string>
+  hiddenParts: Set<string>
   onRecipeSelect: (partId: string, recipeId: string) => void
+}
+
+function pruneHiddenNodes(nodes: CalcNode[], hiddenParts: Set<string>): CalcNode[] {
+  return nodes.reduce<CalcNode[]>((acc, node) => {
+    if (hiddenParts.has(node.partId)) return acc
+    acc.push({ ...node, children: pruneHiddenNodes(node.children, hiddenParts) })
+    return acc
+  }, [])
 }
 
 function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
@@ -89,6 +98,7 @@ function getIntermediateEntries(
 export default function ResultsPanel({
   selectedMilestoneId,
   activeRecipes,
+  hiddenParts,
   onRecipeSelect,
 }: ResultsPanelProps) {
   const [showRaw, setShowRaw] = useState(true)
@@ -99,19 +109,29 @@ export default function ResultsPanel({
     return calculateSingle(selectedMilestoneId, activeRecipes)
   }, [selectedMilestoneId, activeRecipes])
 
+  const prunedTree = useMemo(
+    () => (result ? pruneHiddenNodes(result.tree, hiddenParts) : []),
+    [result, hiddenParts]
+  )
+
   const sortedRaw = useMemo(
     () =>
       result
         ? Object.entries(result.rawResources)
-            .filter(([, qty]) => qty > 0)
+            .filter(([id, qty]) => qty > 0 && !hiddenParts.has(id))
             .sort(([, a], [, b]) => b - a)
         : [],
-    [result]
+    [result, hiddenParts]
   )
 
   const sortedIntermediate = useMemo(
-    () => (result ? getIntermediateEntries(result.tree, result.totals) : []),
-    [result]
+    () =>
+      result
+        ? getIntermediateEntries(result.tree, result.totals).filter(
+            ([id]) => !hiddenParts.has(id)
+          )
+        : [],
+    [result, hiddenParts]
   )
 
   return (
@@ -133,7 +153,7 @@ export default function ResultsPanel({
               Parts Breakdown
             </h3>
             <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
-              {result.tree.map((node) => (
+              {prunedTree.map((node) => (
                 <TreeNode key={node.partId} node={node} />
               ))}
             </div>

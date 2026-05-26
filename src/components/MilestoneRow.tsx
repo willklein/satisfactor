@@ -9,11 +9,13 @@ interface MilestoneRowProps {
   parts: PartCost[]
   checked: boolean
   selected: boolean
+  hiddenParts: Set<string>
   onSelect: (id: string) => void
   onToggle: (id: string) => void
 }
 
-export default function MilestoneRow({ id, name, parts, checked, selected, onSelect, onToggle }: MilestoneRowProps) {
+export default function MilestoneRow({ id, name, parts, checked, selected, hiddenParts, onSelect, onToggle }: MilestoneRowProps) {
+  const visibleParts = parts.filter((p) => !hiddenParts.has(p.partId))
   return (
     <div
       className={`flex items-start gap-3 rounded-lg border px-4 py-3 cursor-pointer transition-colors ${
@@ -36,7 +38,7 @@ export default function MilestoneRow({ id, name, parts, checked, selected, onSel
           <span className="text-sm font-medium text-zinc-100 truncate">{name}</span>
         </div>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-          {parts.map((p) => (
+          {visibleParts.map((p) => (
             <span key={p.partId} className="text-xs text-zinc-400 whitespace-nowrap">
               {p.quantity.toLocaleString()}× {getPartName(p.partId)}
             </span>

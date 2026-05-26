@@ -7,17 +7,25 @@ import { calculate, getMilestoneById } from "@/lib/calculator"
 import type { CalcResult } from "@/lib/calculator"
 import MilestoneGroup from "@/components/MilestoneGroup"
 import ResultsPanel from "@/components/ResultsPanel"
+import SettingsPanel from "@/components/SettingsPanel"
 
 const allMilestones = tiers.flatMap((t) => t.milestones)
 
-function loadPersistedState() {
-  if (typeof window === "undefined") return { checked: [] as string[], recipes: {} as Record<string, string> }
+interface PersistedState {
+  checked: string[]
+  recipes: Record<string, string>
+  hidden: string[]
+}
+
+function loadPersistedState(): PersistedState {
+  if (typeof window === "undefined") return { checked: [], recipes: {}, hidden: [] }
   try {
     const checked = JSON.parse(localStorage.getItem("sf-checked") || "[]")
     const recipes = JSON.parse(localStorage.getItem("sf-recipes") || "{}")
-    return { checked, recipes }
+    const hidden = JSON.parse(localStorage.getItem("sf-hidden") || "[]")
+    return { checked, recipes, hidden }
   } catch {
-    return { checked: [] as string[], recipes: {} as Record<string, string> }
+    return { checked: [], recipes: {}, hidden: [] }
   }
 }
 
@@ -27,12 +35,15 @@ export default function Home() {
   const [result, setResult] = useState<CalcResult>({ totals: {}, rawResources: {}, tree: [] })
   const [expandedTiers, setExpandedTiers] = useState<Set<number>>(new Set())
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null)
+  const [hiddenParts, setHiddenParts] = useState<Set<string>>(new Set())
+  const [showSettings, setShowSettings] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
-    const { checked, recipes } = loadPersistedState()
+    const { checked, recipes, hidden } = loadPersistedState()
     setCheckedIds(new Set(checked))
     setActiveRecipes(recipes)
+    setHiddenParts(new Set(hidden))
     setInitialized(true)
   }, [])
 
@@ -40,6 +51,7 @@ export default function Home() {
     if (!initialized) return
     const ids = Array.from(checkedIds)
     localStorage.setItem("sf-checked", JSON.stringify(ids))
+    localStorage.setItem("sf-hidden", JSON.stringify(Array.from(hiddenParts)))
 
     const calcResult = calculate(ids, activeRecipes)
     setResult(calcResult)
@@ -57,7 +69,7 @@ export default function Home() {
         }),
       })
     } catch {}
-  }, [checkedIds, activeRecipes, initialized])
+  }, [checkedIds, activeRecipes, hiddenParts, initialized])
 
   useEffect(() => {
     if (!initialized) return
@@ -151,6 +163,15 @@ export default function Home() {
     })
   }, [])
 
+  const handleToggleHidden = useCallback((partId: string) => {
+    setHiddenParts((prev) => {
+      const next = new Set(prev)
+      if (next.has(partId)) next.delete(partId)
+      else next.add(partId)
+      return next
+    })
+  }, [])
+
   const handleToggleExpand = useCallback((tierNumber: number) => {
     setExpandedTiers((prev) => {
       const next = new Set(prev)
@@ -185,6 +206,25 @@ export default function Home() {
             >
               Clear All
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowSettings((p) => !p)}
+                className="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-zinc-400 hover:bg-zinc-800 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              {showSettings && (
+                <SettingsPanel
+                  hiddenParts={hiddenParts}
+                  onToggle={handleToggleHidden}
+                  onClose={() => setShowSettings(false)}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -206,6 +246,7 @@ export default function Home() {
                   checkedIds={checkedIds}
                   selectedId={selectedMilestoneId}
                   expanded={expandedTiers.has(tier.number)}
+                  hiddenParts={hiddenParts}
                   onSelect={handleSelect}
                   onToggle={handleToggle}
                   onToggleExpand={() => handleToggleExpand(tier.number)}
@@ -225,6 +266,7 @@ export default function Home() {
               <ResultsPanel
                 selectedMilestoneId={selectedMilestoneId}
                 activeRecipes={activeRecipes}
+                hiddenParts={hiddenParts}
                 onRecipeSelect={handleRecipeSelect}
               />
             </div>

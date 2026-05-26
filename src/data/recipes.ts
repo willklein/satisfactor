@@ -13,7 +13,7 @@ export interface PartDefinition {
   category: "raw" | "crafted"
 }
 
-const partDepths: Record<string, number> = {
+export const partDepths: Record<string, number> = {
   "alumina-solution": 1,
   "aluminum-scrap": 2,
   "aluminum-ingot": 3,
