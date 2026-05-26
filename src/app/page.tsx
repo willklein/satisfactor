@@ -281,6 +281,7 @@ export default function Home() {
                 selectedMilestoneId={selectedMilestoneId}
                 activeRecipes={activeRecipes}
                 hiddenParts={hiddenParts}
+                checkedIds={checkedIds}
                 inventory={inventory}
                 onRecipeSelect={handleRecipeSelect}
                 onInventoryToggle={handleInventoryToggle}

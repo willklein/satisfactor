@@ -3,12 +3,14 @@
 import { useState, useMemo } from "react"
 import { calculateSingle, getMilestoneById, type CalcNode } from "@/lib/calculator"
 import { getPartName, getPartDepth, isRawResource } from "@/data/recipes"
+import tiers from "@/data/milestones"
 import RecipeToggle from "./RecipeToggle"
 
 interface ResultsPanelProps {
   selectedMilestoneId: string | null
   activeRecipes: Record<string, string>
   hiddenParts: Set<string>
+  checkedIds: Set<string>
   inventory: Record<string, string[]>
   onRecipeSelect: (partId: string, recipeId: string) => void
   onInventoryToggle: (milestoneId: string, partId: string) => void
@@ -101,11 +103,13 @@ export default function ResultsPanel({
   selectedMilestoneId,
   activeRecipes,
   hiddenParts,
+  checkedIds,
   inventory,
   onRecipeSelect,
   onInventoryToggle,
 }: ResultsPanelProps) {
   const [showRaw, setShowRaw] = useState(true)
+  const [showTierRemaining, setShowTierRemaining] = useState(true)
   const [showIntermediate, setShowIntermediate] = useState(true)
 
   const result = useMemo(() => {
@@ -113,6 +117,24 @@ export default function ResultsPanel({
     const invParts = inventory[selectedMilestoneId]
     return calculateSingle(selectedMilestoneId, activeRecipes, invParts ? new Set(invParts) : undefined)
   }, [selectedMilestoneId, activeRecipes, inventory])
+
+  const remainingTierParts = useMemo(() => {
+    if (!selectedMilestoneId) return null
+    const milestone = getMilestoneById(selectedMilestoneId)
+    if (!milestone) return null
+    const tierData = tiers.find((t) => t.number === milestone.tier)
+    if (!tierData) return null
+    const totals: Record<string, number> = {}
+    for (const m of tierData.milestones) {
+      if (checkedIds.has(m.id)) continue
+      for (const part of m.parts) {
+        totals[part.partId] = (totals[part.partId] || 0) + part.quantity
+      }
+    }
+    return Object.entries(totals)
+      .filter(([, qty]) => qty > 0)
+      .sort(([, a], [, b]) => b - a)
+  }, [selectedMilestoneId, checkedIds])
 
   const prunedTree = useMemo(
     () => (result ? pruneHiddenNodes(result.tree, hiddenParts) : []),
@@ -189,6 +211,37 @@ export default function ResultsPanel({
                     ))}
                   </div>
                 </div>
+              </div>
+            )
+          })()}
+
+          {remainingTierParts && remainingTierParts.length > 0 && (() => {
+            const tier = tiers.find((t) => t.milestones.some((m) => m.id === selectedMilestoneId))
+            return (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowTierRemaining(!showTierRemaining)}
+                  className="flex items-center gap-2 text-sm font-semibold text-zinc-300 mb-3"
+                >
+                  <svg className={`h-3 w-3 text-zinc-500 transition-transform ${showTierRemaining ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {tier ? `${tier.name} Remaining` : "Tier Remaining"}
+                  <span className="text-xs text-zinc-500 font-normal">({remainingTierParts.length})</span>
+                </button>
+                {showTierRemaining && (
+                  <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
+                    <div className="flex flex-col gap-1">
+                      {remainingTierParts.map(([partId, qty]) => (
+                        <div key={partId} className="flex items-center justify-between rounded bg-zinc-800/40 px-3 py-1.5">
+                          <span className="text-xs text-zinc-300">{getPartName(partId)}</span>
+                          <span className="text-xs tabular-nums text-zinc-100 font-medium">{qty.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })()}
