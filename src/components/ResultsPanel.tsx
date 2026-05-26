@@ -46,14 +46,11 @@ function TreeNode({ node, depth = 0, activeRecipes, onRecipeSelect }: TreeNodePr
   }
 
   return (
-    <div>
+    <div className={depth === 0 ? "border-b border-zinc-700/30 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0" : ""}>
       <div
         className="flex items-center gap-2 py-1"
         style={{ paddingLeft: `${depth * 16}px` }}
       >
-        <svg className="h-3 w-3 shrink-0 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-        </svg>
         <span className="text-sm text-zinc-300">{node.name}</span>
         <span className="text-sm tabular-nums text-zinc-100 font-medium">
           {node.quantity.toLocaleString()}
@@ -63,9 +60,6 @@ function TreeNode({ node, depth = 0, activeRecipes, onRecipeSelect }: TreeNodePr
           activeRecipeId={activeRecipes[node.partId] || node.partId}
           onSelect={onRecipeSelect}
         />
-        {node.children.length > 0 && depth < 5 && (
-          <span className="text-xs text-zinc-500">▼</span>
-        )}
       </div>
       {depth < 5 && node.children.length > 0 && (
         <div>
