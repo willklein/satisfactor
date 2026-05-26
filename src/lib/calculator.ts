@@ -190,7 +190,8 @@ export function calculate(
 
 export function calculateSingle(
   milestoneId: string,
-  activeRecipes: Record<string, string>
+  activeRecipes: Record<string, string>,
+  inventoryParts?: Set<string>
 ): CalcResult {
   const totals: Record<string, number> = {}
 
@@ -219,6 +220,7 @@ export function calculateSingle(
   if (!milestone) return { totals: {}, rawResources: {}, tree: [] }
 
   for (const part of milestone.parts) {
+    if (inventoryParts?.has(part.partId)) continue
     resolve(part.partId, part.quantity)
   }
 
@@ -258,6 +260,7 @@ export function calculateSingle(
     children: [],
   }
   for (const part of milestone.parts) {
+    if (inventoryParts?.has(part.partId)) continue
     milestoneNode.children.push(buildNode(part.partId, part.quantity))
   }
 

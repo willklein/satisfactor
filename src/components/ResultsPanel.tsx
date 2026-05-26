@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { calculateSingle, type CalcNode } from "@/lib/calculator"
+import { calculateSingle, getMilestoneById, type CalcNode } from "@/lib/calculator"
 import { getPartName, getPartDepth, isRawResource } from "@/data/recipes"
 import RecipeToggle from "./RecipeToggle"
 
@@ -9,7 +9,9 @@ interface ResultsPanelProps {
   selectedMilestoneId: string | null
   activeRecipes: Record<string, string>
   hiddenParts: Set<string>
+  inventory: Record<string, string[]>
   onRecipeSelect: (partId: string, recipeId: string) => void
+  onInventoryToggle: (milestoneId: string, partId: string) => void
 }
 
 function pruneHiddenNodes(nodes: CalcNode[], hiddenParts: Set<string>): CalcNode[] {
@@ -99,15 +101,18 @@ export default function ResultsPanel({
   selectedMilestoneId,
   activeRecipes,
   hiddenParts,
+  inventory,
   onRecipeSelect,
+  onInventoryToggle,
 }: ResultsPanelProps) {
   const [showRaw, setShowRaw] = useState(true)
   const [showIntermediate, setShowIntermediate] = useState(true)
 
   const result = useMemo(() => {
     if (!selectedMilestoneId) return null
-    return calculateSingle(selectedMilestoneId, activeRecipes)
-  }, [selectedMilestoneId, activeRecipes])
+    const invParts = inventory[selectedMilestoneId]
+    return calculateSingle(selectedMilestoneId, activeRecipes, invParts ? new Set(invParts) : undefined)
+  }, [selectedMilestoneId, activeRecipes, inventory])
 
   const prunedTree = useMemo(
     () => (result ? pruneHiddenNodes(result.tree, hiddenParts) : []),
@@ -118,10 +123,10 @@ export default function ResultsPanel({
     () =>
       result
         ? Object.entries(result.rawResources)
-            .filter(([id, qty]) => qty > 0 && !hiddenParts.has(id))
+            .filter(([, qty]) => qty > 0)
             .sort(([, a], [, b]) => b - a)
         : [],
-    [result, hiddenParts]
+    [result]
   )
 
   const sortedIntermediate = useMemo(
@@ -145,6 +150,49 @@ export default function ResultsPanel({
         </div>
       ) : (
         <>
+          {selectedMilestoneId && result && (() => {
+            const milestone = getMilestoneById(selectedMilestoneId)
+            const invParts = inventory[selectedMilestoneId] || []
+            if (!milestone) return null
+            const topLevelIds = new Set(milestone.parts.map((p) => p.partId))
+            const intermediateIds = Object.keys(result.totals).filter(
+              (id) => !isRawResource(id) && !topLevelIds.has(id)
+            )
+            const sortedIds = [
+              ...milestone.parts.map((p) => p.partId),
+              ...intermediateIds.sort((a, b) => getPartDepth(b) - getPartDepth(a)),
+            ].filter((id) => !hiddenParts.has(id))
+            return (
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
+                  <svg className="h-4 w-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Inventory
+                </h3>
+                <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
+                  <p className="text-xs text-zinc-500 mb-3">Mark parts you already have to exclude them from the calculation.</p>
+                  <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+                    {sortedIds.map((partId) => (
+                      <label key={partId} className="flex items-center gap-2 rounded bg-zinc-800/40 px-3 py-1.5 cursor-pointer hover:bg-zinc-700/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={invParts.includes(partId)}
+                          onChange={() => onInventoryToggle(selectedMilestoneId, partId)}
+                          className="rounded border-zinc-600 bg-zinc-700 text-yellow-500 focus:ring-yellow-500/40"
+                        />
+                        <span className="text-xs text-zinc-300">{getPartName(partId)}</span>
+                        <span className="text-xs tabular-nums text-zinc-100 font-medium ml-auto">
+                          {(result.totals[partId] || milestone.parts.find((p) => p.partId === partId)?.quantity || 0).toLocaleString()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
           <div>
             <h3 className="text-sm font-semibold text-zinc-300 mb-3 flex items-center gap-2">
               <svg className="h-4 w-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

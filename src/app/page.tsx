@@ -36,6 +36,7 @@ export default function Home() {
   const [expandedTiers, setExpandedTiers] = useState<Set<number>>(new Set())
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null)
   const [hiddenParts, setHiddenParts] = useState<Set<string>>(new Set())
+  const [inventory, setInventory] = useState<Record<string, string[]>>({})
   const [showSettings, setShowSettings] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
@@ -132,6 +133,19 @@ export default function Home() {
         }
       }
       return next
+    })
+  }, [])
+
+  const handleInventoryToggle = useCallback((milestoneId: string, partId: string) => {
+    setInventory((prev) => {
+      const current = prev[milestoneId] || []
+      if (current.includes(partId)) {
+        const filtered = current.filter((id) => id !== partId)
+        return filtered.length === 0
+          ? { ...prev, [milestoneId]: [] }
+          : { ...prev, [milestoneId]: filtered }
+      }
+      return { ...prev, [milestoneId]: [...current, partId] }
     })
   }, [])
 
@@ -267,7 +281,9 @@ export default function Home() {
                 selectedMilestoneId={selectedMilestoneId}
                 activeRecipes={activeRecipes}
                 hiddenParts={hiddenParts}
+                inventory={inventory}
                 onRecipeSelect={handleRecipeSelect}
+                onInventoryToggle={handleInventoryToggle}
               />
             </div>
           </aside>
