@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { calculateSingle, type CalcNode } from "@/lib/calculator"
-import { getPartName } from "@/data/recipes"
+import { getPartName, getPartDepth, isRawResource } from "@/data/recipes"
 import RecipeToggle from "./RecipeToggle"
 
 interface ResultsPanelProps {
@@ -53,6 +53,39 @@ function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
   )
 }
 
+function getIntermediateEntries(
+  tree: CalcNode[],
+  totals: Record<string, number>
+): [string, number, number][] {
+  const parts = new Set<string>()
+  const queue: CalcNode[] = []
+
+  for (const node of tree) {
+    if (node.partId.startsWith("milestone:")) {
+      for (const child of node.children) {
+        queue.push(child)
+      }
+    }
+  }
+
+  while (queue.length > 0) {
+    const node = queue.shift()!
+    if (!isRawResource(node.partId) && !parts.has(node.partId)) {
+      parts.add(node.partId)
+    }
+    if (!isRawResource(node.partId)) {
+      for (const child of node.children) {
+        queue.push(child)
+      }
+    }
+  }
+
+  return Array.from(parts)
+    .map((id) => [id, totals[id] || 0, getPartDepth(id)] as [string, number, number])
+    .filter(([, qty]) => qty > 0)
+    .sort((a, b) => b[2] - a[2] || b[1] - a[1])
+}
+
 export default function ResultsPanel({
   selectedMilestoneId,
   activeRecipes,
@@ -77,17 +110,7 @@ export default function ResultsPanel({
   )
 
   const sortedIntermediate = useMemo(
-    () =>
-      result
-        ? Object.entries(result.totals)
-            .filter(
-              ([id, qty]) =>
-                qty > 0 &&
-                !result.rawResources[id] &&
-                !id.startsWith("milestone:")
-            )
-            .sort(([, a], [, b]) => b - a)
-        : [],
+    () => (result ? getIntermediateEntries(result.tree, result.totals) : []),
     [result]
   )
 
