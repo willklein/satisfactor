@@ -272,9 +272,13 @@ export default function ResultsPanel({
               Parts Breakdown
             </h3>
             <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
-              {prunedTree.map((node) => (
-                <TreeNode key={node.partId} node={node} activeRecipes={activeRecipes} onRecipeSelect={onRecipeSelect} />
-              ))}
+              {prunedTree.length === 0 ? (
+                <p className="text-xs text-zinc-500">No parts required</p>
+              ) : (
+                prunedTree.map((node) => (
+                  <TreeNode key={node.partId} node={node} activeRecipes={activeRecipes} onRecipeSelect={onRecipeSelect} />
+                ))
+              )}
             </div>
           </div>
 
@@ -293,7 +297,7 @@ export default function ResultsPanel({
             {showRaw && (
               <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
                 {sortedRaw.length === 0 ? (
-                  <p className="text-xs text-zinc-500">No raw resources</p>
+                  <p className="text-xs text-zinc-500">No raw resources remaining</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                     {sortedRaw.map(([id, qty]) => (
@@ -323,7 +327,7 @@ export default function ResultsPanel({
             {showIntermediate && (
               <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
                 {sortedIntermediate.length === 0 ? (
-                  <p className="text-xs text-zinc-500">No milestones checked</p>
+                  <p className="text-xs text-zinc-500">No intermediate parts remaining</p>
                 ) : (
                   <div className="flex flex-col gap-1">
                     {sortedIntermediate.map(([id, qty]) => (
