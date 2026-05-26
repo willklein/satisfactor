@@ -38,6 +38,7 @@ export default function Home() {
   const [hiddenParts, setHiddenParts] = useState<Set<string>>(new Set())
   const [inventory, setInventory] = useState<Record<string, string[]>>({})
   const [showSettings, setShowSettings] = useState(false)
+  const [showPreviousTiers, setShowPreviousTiers] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
@@ -197,6 +198,13 @@ export default function Home() {
 
   const hasAnyExpanded = expandedTiers.size > 0
 
+  const firstIncompleteTier = tiers.findIndex(
+    (t) => t.milestones.some((m) => !checkedIds.has(m.id))
+  )
+  const visibleTiers = showPreviousTiers
+    ? tiers
+    : tiers.slice(firstIncompleteTier >= 0 ? firstIncompleteTier : 0)
+
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
       <header className="border-b border-zinc-800 bg-zinc-900/80 sticky top-0 z-30 backdrop-blur-sm">
@@ -246,14 +254,23 @@ export default function Home() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-8">
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold text-zinc-400 mb-4 flex items-center gap-2">
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              Milestones
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-zinc-400 flex items-center gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Milestones
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowPreviousTiers((p) => !p)}
+                className="rounded-lg border border-zinc-700 px-2.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800 transition-colors"
+              >
+                {showPreviousTiers ? "Hide Completed" : "Show All"}
+              </button>
+            </div>
             <div className="flex flex-col gap-2">
-              {tiers.map((tier) => (
+              {visibleTiers.map((tier) => (
                 <MilestoneGroup
                   key={tier.number}
                   tier={tier}
