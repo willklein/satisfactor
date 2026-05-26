@@ -33,11 +33,11 @@
     "railway-signalling",
     "pipeline-engineering-mk2",
     "ficsit-blueprints-mk2",
-    "bauxite-refinement",
     "hoverpack",
     "logistics-mk5",
     "hazmat-suit",
-    "control-system-development"
+    "control-system-development",
+    "bauxite-refinement"
   ],
   "activeRecipes": {},
   "totals": {
@@ -91,5 +91,5 @@
     "water": 1272,
     "caterium-ore": 167
   },
-  "timestamp": "2026-05-26T03:41:45.978Z"
+  "timestamp": "2026-05-26T03:50:55.193Z"
 }

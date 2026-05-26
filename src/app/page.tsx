@@ -1,11 +1,14 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import tiers from "@/data/milestones"
 import { getDefaultRecipe } from "@/data/recipes"
-import { calculate, type CalcResult } from "@/lib/calculator"
+import { calculate, getMilestoneById } from "@/lib/calculator"
+import type { CalcResult } from "@/lib/calculator"
 import MilestoneGroup from "@/components/MilestoneGroup"
 import ResultsPanel from "@/components/ResultsPanel"
+
+const allMilestones = tiers.flatMap((t) => t.milestones)
 
 function loadPersistedState() {
   if (typeof window === "undefined") return { checked: [] as string[], recipes: {} as Record<string, string> }
@@ -22,7 +25,8 @@ export default function Home() {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [activeRecipes, setActiveRecipes] = useState<Record<string, string>>({})
   const [result, setResult] = useState<CalcResult>({ totals: {}, rawResources: {}, tree: [] })
-  const [allExpanded, setAllExpanded] = useState(false)
+  const [expandedTiers, setExpandedTiers] = useState<Set<number>>(new Set())
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
@@ -55,13 +59,72 @@ export default function Home() {
     } catch {}
   }, [checkedIds, activeRecipes, initialized])
 
+  useEffect(() => {
+    if (!initialized) return
+
+    let highestFullyChecked = -1
+    let highestChecked = -1
+
+    for (const tier of tiers) {
+      const count = tier.milestones.filter((m) => checkedIds.has(m.id)).length
+      if (count > 0) highestChecked = tier.number
+      if (count === tier.milestones.length && tier.milestones.length > 0) {
+        highestFullyChecked = tier.number
+      }
+    }
+
+    setExpandedTiers((prev) => {
+      const next = new Set(prev)
+      for (const tier of tiers) {
+        if (tier.number < highestChecked) {
+          next.delete(tier.number)
+        }
+      }
+      if (highestFullyChecked >= 0 && highestFullyChecked < 9) {
+        next.add(highestFullyChecked + 1)
+      }
+      return next
+    })
+
+    if (highestFullyChecked >= 0 && highestFullyChecked < 9) {
+      const nextTier = tiers.find((t) => t.number === highestFullyChecked + 1)
+      if (nextTier && nextTier.milestones.length > 0) {
+        setSelectedMilestoneId((prev) => {
+          const current = prev ? allMilestones.find((m) => m.id === prev) : undefined
+          if (!current || current.tier <= highestFullyChecked) {
+            return nextTier.milestones[0].id
+          }
+          return prev
+        })
+      }
+    }
+  }, [checkedIds, initialized])
+
   const handleToggle = useCallback((id: string) => {
     setCheckedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        return next
+      }
+      next.add(id)
+      const milestone = allMilestones.find((m) => m.id === id)
+      if (milestone) {
+        for (let tn = 0; tn < milestone.tier; tn++) {
+          const lowerTier = tiers.find((t) => t.number === tn)
+          if (lowerTier) {
+            for (const m of lowerTier.milestones) {
+              next.add(m.id)
+            }
+          }
+        }
+      }
       return next
     })
+  }, [])
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedMilestoneId(id)
   }, [])
 
   const handleRecipeSelect = useCallback((partId: string, recipeId: string) => {
@@ -78,7 +141,26 @@ export default function Home() {
 
   const handleClearAll = useCallback(() => {
     setCheckedIds(new Set())
+    setSelectedMilestoneId(null)
   }, [])
+
+  const handleToggleAll = useCallback(() => {
+    setExpandedTiers((prev) => {
+      if (prev.size > 0) return new Set()
+      return new Set(tiers.map((t) => t.number))
+    })
+  }, [])
+
+  const handleToggleExpand = useCallback((tierNumber: number) => {
+    setExpandedTiers((prev) => {
+      const next = new Set(prev)
+      if (next.has(tierNumber)) next.delete(tierNumber)
+      else next.add(tierNumber)
+      return next
+    })
+  }, [])
+
+  const hasAnyExpanded = expandedTiers.size > 0
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
@@ -91,10 +173,10 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setAllExpanded(!allExpanded)}
+              onClick={handleToggleAll}
               className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 transition-colors"
             >
-              {allExpanded ? "Collapse All" : "Expand All"}
+              {hasAnyExpanded ? "Collapse All" : "Expand All"}
             </button>
             <button
               type="button"
@@ -122,7 +204,11 @@ export default function Home() {
                   key={tier.number}
                   tier={tier}
                   checkedIds={checkedIds}
+                  selectedId={selectedMilestoneId}
+                  expanded={expandedTiers.has(tier.number)}
+                  onSelect={handleSelect}
                   onToggle={handleToggle}
+                  onToggleExpand={() => handleToggleExpand(tier.number)}
                 />
               ))}
             </div>
@@ -137,9 +223,7 @@ export default function Home() {
                 Calculation
               </h2>
               <ResultsPanel
-                tree={result.tree}
-                totals={result.totals}
-                rawResources={result.rawResources}
+                selectedMilestoneId={selectedMilestoneId}
                 activeRecipes={activeRecipes}
                 onRecipeSelect={handleRecipeSelect}
               />

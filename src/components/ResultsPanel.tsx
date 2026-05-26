@@ -1,14 +1,12 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import type { CalcNode } from "@/lib/calculator"
+import { calculateSingle, type CalcNode } from "@/lib/calculator"
 import { getPartName } from "@/data/recipes"
 import RecipeToggle from "./RecipeToggle"
 
 interface ResultsPanelProps {
-  tree: CalcNode[]
-  totals: Record<string, number>
-  rawResources: Record<string, number>
+  selectedMilestoneId: string | null
   activeRecipes: Record<string, string>
   onRecipeSelect: (partId: string, recipeId: string) => void
 }
@@ -56,46 +54,51 @@ function TreeNode({ node, depth = 0 }: { node: CalcNode; depth?: number }) {
 }
 
 export default function ResultsPanel({
-  tree,
-  totals,
-  rawResources,
+  selectedMilestoneId,
   activeRecipes,
   onRecipeSelect,
 }: ResultsPanelProps) {
   const [showRaw, setShowRaw] = useState(true)
   const [showIntermediate, setShowIntermediate] = useState(true)
 
+  const result = useMemo(() => {
+    if (!selectedMilestoneId) return null
+    return calculateSingle(selectedMilestoneId, activeRecipes)
+  }, [selectedMilestoneId, activeRecipes])
+
   const sortedRaw = useMemo(
     () =>
-      Object.entries(rawResources)
-        .filter(([, qty]) => qty > 0)
-        .sort(([, a], [, b]) => b - a),
-    [rawResources]
+      result
+        ? Object.entries(result.rawResources)
+            .filter(([, qty]) => qty > 0)
+            .sort(([, a], [, b]) => b - a)
+        : [],
+    [result]
   )
 
   const sortedIntermediate = useMemo(
     () =>
-      Object.entries(totals)
-        .filter(
-          ([id, qty]) =>
-            qty > 0 &&
-            !rawResources[id] &&
-            !id.startsWith("milestone:")
-        )
-        .sort(([, a], [, b]) => b - a),
-    [totals, rawResources]
+      result
+        ? Object.entries(result.totals)
+            .filter(
+              ([id, qty]) =>
+                qty > 0 &&
+                !result.rawResources[id] &&
+                !id.startsWith("milestone:")
+            )
+            .sort(([, a], [, b]) => b - a)
+        : [],
+    [result]
   )
-
-  const hasChecks = Object.keys(totals).length > 0
 
   return (
     <div className="flex flex-col gap-6">
-      {!hasChecks ? (
+      {!result ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <svg className="h-12 w-12 text-zinc-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-sm text-zinc-500">Check milestones above to see calculated totals</p>
+          <p className="text-sm text-zinc-500">Click a milestone to see its parts breakdown</p>
         </div>
       ) : (
         <>
@@ -107,7 +110,7 @@ export default function ResultsPanel({
               Parts Breakdown
             </h3>
             <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
-              {tree.map((node) => (
+              {result.tree.map((node) => (
                 <TreeNode key={node.partId} node={node} />
               ))}
             </div>
@@ -128,7 +131,7 @@ export default function ResultsPanel({
             {showRaw && (
               <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
                 {sortedRaw.length === 0 ? (
-                  <p className="text-xs text-zinc-500">No milestones checked</p>
+                  <p className="text-xs text-zinc-500">No raw resources</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                     {sortedRaw.map(([id, qty]) => (

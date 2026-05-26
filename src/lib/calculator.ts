@@ -116,7 +116,7 @@ function getPartName(partId: string): string {
   return names[partId] ?? partId
 }
 
-function getMilestoneById(id: string): Milestone | undefined {
+export function getMilestoneById(id: string): Milestone | undefined {
   for (const tier of tiers) {
     for (const m of tier.milestones) {
       if (m.id === id) return m
@@ -186,6 +186,82 @@ export function calculate(
   const tree = buildTree(checkedMilestoneIds, activeRecipes)
 
   return { totals, rawResources, tree }
+}
+
+export function calculateSingle(
+  milestoneId: string,
+  activeRecipes: Record<string, string>
+): CalcResult {
+  const totals: Record<string, number> = {}
+
+  function getRecipeFor(partId: string) {
+    if (activeRecipes[partId]) {
+      const recipes = getRecipesForPart(partId)
+      const active = recipes.find((r) => r.id === activeRecipes[partId])
+      if (active) return active
+    }
+    return getDefaultRecipe(partId)
+  }
+
+  function resolve(partId: string, quantity: number, depth = 0) {
+    if (depth > 20) return
+    totals[partId] = (totals[partId] || 0) + quantity
+    if (isRawResource(partId)) return
+    const recipe = getRecipeFor(partId)
+    if (!recipe) return
+    const batches = scaleQuantity(quantity, recipe.outputs.quantity)
+    for (const input of recipe.inputs) {
+      resolve(input.partId, input.quantity * batches, depth + 1)
+    }
+  }
+
+  const milestone = getMilestoneById(milestoneId)
+  if (!milestone) return { totals: {}, rawResources: {}, tree: [] }
+
+  for (const part of milestone.parts) {
+    resolve(part.partId, part.quantity)
+  }
+
+  const rawResources: Record<string, number> = {}
+  const rawSet = new Set([
+    "iron-ore", "copper-ore", "limestone", "coal", "crude-oil",
+    "bauxite", "raw-quartz", "caterium-ore", "sulfur", "uranium",
+    "nitrogen-gas", "sam", "water",
+  ])
+  for (const [partId, qty] of Object.entries(totals)) {
+    if (rawSet.has(partId)) {
+      rawResources[partId] = qty
+    }
+  }
+
+  function buildNode(partId: string, quantity: number, depth = 0): CalcNode {
+    const node: CalcNode = {
+      partId,
+      name: getPartName(partId),
+      quantity,
+      children: [],
+    }
+    if (depth >= 6 || isRawResource(partId)) return node
+    const recipe = getRecipeFor(partId)
+    if (!recipe) return node
+    const batches = scaleQuantity(quantity, recipe.outputs.quantity)
+    for (const input of recipe.inputs) {
+      node.children.push(buildNode(input.partId, input.quantity * batches, depth + 1))
+    }
+    return node
+  }
+
+  const milestoneNode: CalcNode = {
+    partId: `milestone:${milestoneId}`,
+    name: milestone.name,
+    quantity: 0,
+    children: [],
+  }
+  for (const part of milestone.parts) {
+    milestoneNode.children.push(buildNode(part.partId, part.quantity))
+  }
+
+  return { totals, rawResources, tree: [milestoneNode] }
 }
 
 function buildTree(
