@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { calculateSingle, getMilestoneById, type CalcNode } from "@/lib/calculator"
+import { calculateSingle, calculate, getMilestoneById, type CalcNode } from "@/lib/calculator"
 import { getPartName, getPartDepth, isRawResource, getRecipesForPart } from "@/data/recipes"
 import tiers from "@/data/milestones"
 import RecipeToggle from "./RecipeToggle"
@@ -115,7 +115,8 @@ export default function ResultsPanel({
   onInventoryToggle,
 }: ResultsPanelProps) {
   const [showRaw, setShowRaw] = useState(true)
-  const [showTierRemaining, setShowTierRemaining] = useState(true)
+  const [showTierTopLevel, setShowTierTopLevel] = useState(true)
+  const [showTierRecipe, setShowTierRecipe] = useState(true)
   const [showIntermediate, setShowIntermediate] = useState(true)
 
   const result = useMemo(() => {
@@ -141,6 +142,38 @@ export default function ResultsPanel({
       .filter(([, qty]) => qty > 0)
       .sort(([, a], [, b]) => b - a)
   }, [selectedMilestoneId, checkedIds])
+
+  const remainingResolvedParts = useMemo(() => {
+    if (!selectedMilestoneId) return null
+    const milestone = getMilestoneById(selectedMilestoneId)
+    if (!milestone) return null
+    const tierData = tiers.find((t) => t.number === milestone.tier)
+    if (!tierData) return null
+    const uncheckedIds = tierData.milestones
+      .filter((m) => !checkedIds.has(m.id))
+      .map((m) => m.id)
+    if (uncheckedIds.length === 0) return null
+    const invParts = inventory[selectedMilestoneId]
+
+    const mergedTotals: Record<string, number> = {}
+    for (const id of uncheckedIds) {
+      const calcInv = id === selectedMilestoneId && invParts ? new Set(invParts) : undefined
+      const r = calculateSingle(id, activeRecipes, calcInv)
+      for (const [partId, qty] of Object.entries(r.totals)) {
+        if (!isRawResource(partId)) {
+          mergedTotals[partId] = (mergedTotals[partId] || 0) + qty
+        }
+      }
+    }
+
+    const topLevelIds = new Set(
+      tierData.milestones.flatMap((m) => m.parts.map((p) => p.partId))
+    )
+
+    return Object.entries(mergedTotals)
+      .filter(([id, qty]) => qty > 0 && !topLevelIds.has(id))
+      .sort(([, a], [, b]) => b - a)
+  }, [selectedMilestoneId, checkedIds, activeRecipes, inventory])
 
   const prunedTree = useMemo(
     () => (result ? pruneHiddenNodes(result.tree, hiddenParts) : []),
@@ -228,38 +261,77 @@ export default function ResultsPanel({
 
           {remainingTierParts && remainingTierParts.length > 0 && (() => {
             const tier = tiers.find((t) => t.milestones.some((m) => m.id === selectedMilestoneId))
+            const tierName = tier ? tier.name : "Tier"
             return (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowTierRemaining(!showTierRemaining)}
-                  className="flex items-center gap-2 text-sm font-semibold text-zinc-300 mb-3"
-                >
-                  <svg className={`h-3 w-3 text-zinc-500 transition-transform ${showTierRemaining ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  {tier ? `${tier.name} Remaining` : "Tier Remaining"}
-                  <span className="text-xs text-zinc-500 font-normal">({remainingTierParts.length})</span>
-                </button>
-                {showTierRemaining && (
-                  <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
-                    <div className="flex flex-col gap-1">
-                      {remainingTierParts.map(([partId, qty]) => (
-                        <div key={partId} className="flex items-center justify-between rounded bg-zinc-800/40 px-3 py-1.5">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-xs text-zinc-300 truncate">{getPartName(partId)}</span>
-                            <RecipeToggle
-                              partId={partId}
-                              activeRecipeId={activeRecipes[partId] || partId}
-                              onSelect={onRecipeSelect}
-                            />
+              <div className="flex flex-col gap-4">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTierTopLevel(!showTierTopLevel)}
+                    className="flex items-center gap-2 text-sm font-semibold text-zinc-300 mb-3"
+                  >
+                    <svg className={`h-3 w-3 text-zinc-500 transition-transform ${showTierTopLevel ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    {tierName} Top-level Requirements
+                    <span className="text-xs text-zinc-500 font-normal">({remainingTierParts.length})</span>
+                  </button>
+                  {showTierTopLevel && (
+                    <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
+                      <div className="flex flex-col gap-1">
+                        {remainingTierParts.map(([partId, qty]) => (
+                          <div key={partId} className="flex items-center justify-between rounded bg-zinc-800/40 px-3 py-1.5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs text-zinc-300 truncate">{getPartName(partId)}</span>
+                              <RecipeToggle
+                                partId={partId}
+                                activeRecipeId={activeRecipes[partId] || partId}
+                                onSelect={onRecipeSelect}
+                              />
+                            </div>
+                            <span className="text-xs tabular-nums text-zinc-100 font-medium shrink-0 ml-3">{qty.toLocaleString()}</span>
                           </div>
-                          <span className="text-xs tabular-nums text-zinc-100 font-medium shrink-0 ml-3">{qty.toLocaleString()}</span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTierRecipe(!showTierRecipe)}
+                    className="flex items-center gap-2 text-sm font-semibold text-zinc-300 mb-3"
+                  >
+                    <svg className={`h-3 w-3 text-zinc-500 transition-transform ${showTierRecipe ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    {tierName} Recipe Requirements
+                    <span className="text-xs text-zinc-500 font-normal">({remainingResolvedParts ? remainingResolvedParts.length : 0})</span>
+                  </button>
+                  {showTierRecipe && (
+                    <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-4">
+                      {remainingResolvedParts && remainingResolvedParts.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {remainingResolvedParts.map(([partId, qty]) => (
+                            <div key={partId} className="flex items-center justify-between rounded bg-zinc-800/40 px-3 py-1.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs text-zinc-300 truncate">{getPartName(partId)}</span>
+                                <RecipeToggle
+                                  partId={partId}
+                                  activeRecipeId={activeRecipes[partId] || partId}
+                                  onSelect={onRecipeSelect}
+                                />
+                              </div>
+                              <span className="text-xs tabular-nums text-zinc-100 font-medium shrink-0 ml-3">{qty.toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-zinc-500">No recipe requirements remaining</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })()}
